@@ -47,7 +47,7 @@ The Bank LLM Assistant follows a retrieval-augmented generation (RAG) architectu
 - **Context Compilation**: Assembles retrieved context for the language model
 
 ### 4. Response Generation
-- **GPT-J 6B Model**: EleutherAI's 6 billion parameter LLM for text generation
+- **Llama-3.2-3B-Instruct Model**: Meta's 3 billion parameter LLM for text generation
 - **Prompt Engineering**: Structured prompts to guide the model's response generation
 - **Context Integration**: Incorporates retrieved information into the generation process
 
@@ -71,7 +71,7 @@ The Bank LLM Assistant follows a retrieval-augmented generation (RAG) architectu
 
 ## Key Technical Decisions
 
-1. **Model Selection**: GPT-J 6B offers a good balance between performance and resource requirements
+1. **Model Selection**: Llama-3.2-3B-Instruct offers a good balance between performance and resource requirements
 2. **Embedding Model**: Sentence-transformers provides efficient and effective text embeddings
 3. **Vector Index**: FAISS enables fast similarity search even with a large number of documents
 4. **Retrieval Strategy**: Top-k most similar document chunks are retrieved for context

@@ -15,9 +15,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class GPTJ:
+class LlamaModel:
     """
-    Wrapper for the GPT-J 6B model from EleutherAI.
+    Wrapper for the Llama-3.2-3B-Instruct model from Meta.
     Handles loading, generation, and context management.
     """
     
@@ -29,7 +29,7 @@ class GPTJ:
         mock_mode: bool = True  # Set to True by default for testing
     ):
         """
-        Initialize the GPT-J model.
+        Initialize the Llama model.
         
         Args:
             model_name: Name or path of the model
@@ -39,7 +39,7 @@ class GPTJ:
         """
         # Get model name from environment variables if not provided
         if model_name is None:
-            self.model_name = os.getenv("MODEL_NAME", "EleutherAI/gpt-j-6B")
+            self.model_name = os.getenv("MODEL_NAME", "meta-llama/Llama-3.2-3B-Instruct")
         else:
             self.model_name = model_name
             
@@ -68,13 +68,13 @@ class GPTJ:
         
     def load_model(self):
         """
-        Load the GPT-J model and tokenizer.
+        Load the Llama model and tokenizer.
         """
         if self.mock_mode:
             logger.info("Mock mode active - not loading the actual model")
             return
             
-        logger.info(f"Loading GPT-J model: {self.model_name}")
+        logger.info(f"Loading Llama model: {self.model_name}")
         
         # Load the tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(
@@ -112,7 +112,7 @@ class GPTJ:
         num_return_sequences: int = 1
     ) -> List[str]:
         """
-        Generate text using the GPT-J model.
+        Generate text using the Llama model.
         
         Args:
             prompt: Input text to condition the generation
@@ -260,20 +260,19 @@ class GPTJ:
             elif 'content' in doc:
                 context_texts.append(doc['content'])
         
-        # Create a prompt template
-        prompt_template = """
-### Instruction:
+        # Create a prompt template for Llama models
+        prompt_template = """<|system|>
 You are a helpful, accurate, and friendly bank assistant. Answer the user's question based on the context provided below. 
 If the answer cannot be determined from the context, politely say you don't have information about that topic.
 Do not make up information or provide personal opinions.
 
-### Context:
-{context}
+Context:
+{context}</|system|>
 
-### Question:
-{question}
+<|user|>
+{question}</|user|>
 
-### Answer:
+<|assistant|>
 """
         
         # Join context, limited by max_context_length
@@ -334,7 +333,7 @@ Do not make up information or provide personal opinions.
 
 if __name__ == "__main__":
     # Test the model with a simple example
-    llm = GPTJ(mock_mode=True)
+    llm = LlamaModel(mock_mode=True)
     test_context = [
         {"text": "Customers can check their account balance through our mobile app, online banking platform, or by calling our 24/7 customer service line at 1-800-BANK."},
         {"text": "Our savings accounts offer competitive interest rates starting at 2.5% APY for balances over $1,000."}

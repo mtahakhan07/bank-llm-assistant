@@ -15,7 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.preprocess import BankDataPreprocessor
 from utils.embeddings import EmbeddingManager
-from models.llm import GPTJ
+from models.llm import LlamaModel
 
 # Configure logging
 logging.basicConfig(
@@ -53,10 +53,10 @@ def load_llm():
     load_8bit = os.getenv('LOAD_8BIT', 'False').lower() == 'true'
     
     # Get model name from environment
-    model_name = os.getenv('MODEL_NAME', 'EleutherAI/gpt-j-6B')
+    model_name = os.getenv('MODEL_NAME', 'meta-llama/Llama-3.2-3B-Instruct')
     
     # Create and return LLM instance
-    return GPTJ(
+    return LlamaModel(
         model_name=model_name,
         load_in_8bit=load_8bit,
         mock_mode=use_mock
@@ -84,7 +84,7 @@ def initialize_session_state():
 
 def create_sidebar():
     st.sidebar.title("Bank LLM Assistant")
-    st.sidebar.markdown("An AI-powered banking assistant using GPT-J 6B")
+    st.sidebar.markdown("An AI-powered banking assistant using Llama-3.2-3B")
     
     # Create section for uploading documents
     st.sidebar.header("Upload New Data")
@@ -113,7 +113,7 @@ def create_sidebar():
         st.sidebar.warning("🔍 Vector index not loaded")
         
     # Model status
-    st.sidebar.success("🤖 GPT-J 6B model available")
+    st.sidebar.success("🤖 Llama-3.2-3B model available")
     
     # Add information about guard rails
     st.sidebar.header("Security Notes")
@@ -225,7 +225,7 @@ def create_main_interface():
                         # Get relevant context from vector search
                         context_results = embedding_manager.search(user_question, k=3)
                         
-                        # Get answer from GPT-J
+                        # Get answer from Llama
                         llm = load_llm()
                         response = llm.generate_answer(user_question, context_results)
                         

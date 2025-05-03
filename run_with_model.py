@@ -25,16 +25,16 @@ def main():
     parser.add_argument("--mock", action="store_true", help="Use mock mode instead of real model (RECOMMENDED for testing)")
     parser.add_argument("--load-8bit", action="store_true", help="Load model in 8-bit quantization (requires bitsandbytes)")
     parser.add_argument("--model", type=str, help="Custom model name to use (overrides .env)")
-    parser.add_argument("--small", action="store_true", help="Use GPT-Neo 1.3B (smaller, faster model)")
+    parser.add_argument("--small", action="store_true", help="Use Llama-3.2-1B-Instruct (smaller, faster model)")
     args = parser.parse_args()
 
     # Determine which model to use
     if args.model:
         model_name = args.model
     elif args.small:
-        model_name = "EleutherAI/gpt-neo-1.3B"
+        model_name = "meta-llama/Llama-3.2-1B-Instruct"
     else:
-        model_name = os.getenv("MODEL_NAME", "EleutherAI/gpt-neo-1.3B")  # Default to smaller model
+        model_name = os.getenv("MODEL_NAME", "meta-llama/Llama-3.2-3B-Instruct")  # Default to 3B model
     
     # Mode message
     mode = "mock" if args.mock else "actual model"
@@ -46,10 +46,6 @@ def main():
         logger.info("         For testing purposes, consider using --mock mode.")
         logger.info(f"Starting Bank LLM Assistant in {mode} mode {quant}")
         logger.info(f"Using model: {model_name}")
-        
-        if "gpt-j-6B" in model_name and not args.load_8bit:
-            logger.warning("GPT-J 6B is a large model and may require 8-bit quantization.")
-            logger.warning("Consider using --load-8bit or --small flag for better performance.")
     else:
         logger.info(f"Starting Bank LLM Assistant in {mode} mode (safe for testing)")
     

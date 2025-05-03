@@ -40,10 +40,10 @@
         <mxCell id="query_processing_details" value="- User question embedding&#xa;- Context retrieval&#xa;- Query understanding" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
           <mxGeometry x="380" y="490" width="160" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="gptj" value="GPT-J 6B" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontStyle=1" parent="1" vertex="1">
+        <mxCell id="gptj" value="Llama-3.2-3B-Instruct" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontStyle=1" parent="1" vertex="1">
           <mxGeometry x="640" y="120" width="160" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="gptj_details" value="- 6 billion parameters&#xa;- Transformer architecture&#xa;- Optimized inference" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
+        <mxCell id="gptj_details" value="- 3 billion parameters&#xa;- Transformer architecture&#xa;- Optimized inference" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
           <mxGeometry x="640" y="190" width="160" height="60" as="geometry" />
         </mxCell>
         <mxCell id="prompt_engineering" value="Prompt Engineering" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontStyle=1" parent="1" vertex="1">
@@ -182,7 +182,7 @@
         <mxCell id="legend_label6" value="User Interface" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
           <mxGeometry x="870" y="310" width="140" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="project_info" value="Bank LLM Assistant with GPT-J 6B&#xa;CS416: Large Language Models (BESE-12)&#xa;Instructor: Prof. Dr. Faisal Shafait" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;" parent="1" vertex="1">
+        <mxCell id="project_info" value="Bank LLM Assistant with Llama-3.2-3B-Instruct&#xa;CS416: Large Language Models (BESE-12)&#xa;Instructor: Prof. Dr. Faisal Shafait" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;" parent="1" vertex="1">
           <mxGeometry x="820" y="360" width="200" height="60" as="geometry" />
         </mxCell>
       </root>
