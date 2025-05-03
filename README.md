@@ -1,131 +1,107 @@
-# Bank LLM Assistant
+# NUST Bank LLM Assistant
 
-A Large Language Model (LLM)-based solution to enhance customer service for a local bank. This project uses advanced language models to create a responsive AI-driven assistant capable of handling customer inquiries accurately with context-aware responses.
+This project implements a Large Language Model (LLM)-based solution to enhance customer service for NUST Bank. The system uses a retrieval-augmented generation (RAG) approach to answer customer queries accurately using a knowledge base of banking products and services.
+
+## Features
+
+- **Data Ingestion & Preprocessing**: Handles Excel, CSV, JSON, and plaintext files with automatic sanitization.
+- **Embedding & Indexing**: Creates vector embeddings for efficient semantic search using FAISS.
+- **LLM Integration**: Uses Llama-3.2-3B-Instruct for high-quality response generation.
+- **Guard Rails**: Implements safety measures to prevent harmful content and protect sensitive information.
+- **Real-Time Updates**: Allows adding new documents to the knowledge base through the UI.
+- **Streamlit Interface**: Provides an intuitive chat interface for customers.
+
+## Architecture
+
+The system follows a retrieval-augmented generation (RAG) architecture:
+
+1. **Data Processing**: Documents are preprocessed, chunked, and embedded.
+2. **Vector Storage**: FAISS is used for efficient similarity search.
+3. **Query Processing**: User questions are converted to embeddings and matched with relevant context.
+4. **Response Generation**: The LLM generates responses based on retrieved context.
+5. **Guard Rails**: Safety filters prevent harmful content and protect sensitive data.
+
+## Setup Instructions
+
+### Prerequisites
+
+- Python 3.8+
+- Pip package manager
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/bank-llm-assistant.git
+   cd bank-llm-assistant
+   ```
+
+2. Create a virtual environment:
+   ```bash
+   python -m venv venv
+   
+   # On Windows
+   venv\Scripts\activate
+   
+   # On macOS/Linux
+   source venv/bin/activate
+   ```
+
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+### Running the Application
+
+1. Start the Streamlit app:
+   ```bash
+   streamlit run main.py
+   ```
+
+2. Open your browser and navigate to http://localhost:8501
+
+## Usage
+
+- Ask questions about NUST Bank products and services in the chat interface.
+- Upload new documents via the sidebar to expand the knowledge base.
+- Adjust response settings like length and temperature in the sidebar.
 
 ## Project Structure
 
 ```
 bank-llm-assistant/
-├── app/                 # Streamlit web application
-├── data/                # Dataset storage
-├── models/              # Model scripts and fine-tuning code
-├── utils/               # Utility functions
-├── requirements.txt     # Required packages
-├── .env                 # Environment configuration (create this file)
-└── README.md            # Project overview
+├── app/                    # Application components
+├── data/                   # Data storage (FAISS indices)
+├── models/                 # LLM model implementation
+│   └── llm.py              # LLM model class
+├── utils/                  # Utility functions
+│   ├── data_processor.py   # Data preprocessing utilities
+│   ├── guardrails.py       # Safety filters
+│   └── vector_store.py     # FAISS vector store implementation
+├── main.py                 # Main Streamlit application
+├── requirements.txt        # Python dependencies
+└── README.md               # Project documentation
 ```
 
-## Quick Start
+## Limitations
 
-1. Clone the repository
-2. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-3. Create a `.env` file in the project root with the following content:
-   ```
-   # Model configuration
-   MODEL_NAME=EleutherAI/gpt-neo-1.3B
-   USE_MOCK_MODEL=True
-   LOAD_8BIT=False
-   
-   # Hugging Face token for model access
-   HUGGINGFACE_TOKEN=your_huggingface_token_here
-   ```
-4. Process the sample data:
-   ```
-   python preprocess_sample_data.py
-   ```
-5. Start the application in mock mode:
-   ```
-   streamlit run app/streamlit_app.py
-   ```
-6. Access the web interface at http://localhost:8501
+- The system is designed for a specific domain (banking) and may not perform well on out-of-domain queries.
+- The LLM model requires significant computational resources, especially on CPU-only environments.
+- Answers are limited to the information contained in the knowledge base.
 
-## Using LLM Models
+## Future Improvements
 
-This project supports various language models from Hugging Face, with a default configuration that balances performance and resource requirements.
+- Multi-language support for diverse customer base
+- Integration with bank's authentication system for personalized responses
+- Enhanced context retrieval with hybrid search methods
+- Support for additional document formats (PDF, DOC, etc.)
 
-### Setting Up Hugging Face Token
+## License
 
-To use any actual model (not mock mode), you must:
+This project is licensed for educational purposes only and is not intended for production use.
 
-1. Register/login at [huggingface.co](https://huggingface.co)
-2. Go to Profile → Settings → Access Tokens
-3. Create a new token with "read" access
-4. Copy the token to your `.env` file:
-   ```
-   HUGGINGFACE_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxxxxx
-   ```
+## Contributors
 
-### Choosing the Right Model
-
-The project now defaults to **GPT-Neo 1.3B** which offers:
-- Faster loading times
-- Lower memory requirements
-- Compatible with most systems
-- No quantization required
-
-You can still use **GPT-J 6B** if you have sufficient resources:
-- Requires 16GB+ RAM or 8-bit quantization
-- Higher quality responses
-- Significantly larger resource footprint
-
-### Running with Actual Models
-
-Use the `run_with_model.py` script for the easiest setup:
-
-```bash
-# Run with the smaller GPT-Neo 1.3B model (recommended)
-python run_with_model.py --small
-
-# Run with the model specified in your .env file
-python run_with_model.py
-
-# Specify any Hugging Face model
-python run_with_model.py --model=EleutherAI/gpt-neo-2.7B
-```
-
-### Mock Mode vs. Real Model
-
-By default, the system runs in "mock mode" which simulates responses without loading any large model. This is ideal for testing and development.
-
-To use a real model:
-1. Use `run_with_model.py` with appropriate flags
-2. Ensure your Hugging Face token is configured correctly
-3. Be patient during initial model loading
-
-## Features
-
-- Data ingestion and preprocessing
-- Vector embeddings for efficient retrieval
-- Context-aware responses using advanced language models
-- Basic guard rails implementation
-- Streamlit-based chat interface for asking questions and uploading new documents
-
-## Architecture
-
-[Architecture Diagram](architecture.png)
-
-## Troubleshooting
-
-### Common Issues
-
-1. **bitsandbytes errors with --load-8bit**:
-   - This requires a separate installation: `pip install bitsandbytes`
-   - Some Windows systems have compatibility issues with bitsandbytes
-   - Use `--small` flag instead for more compatible models
-
-2. **Out of memory errors**:
-   - Use the smaller model: `python run_with_model.py --small` 
-   - Close other memory-intensive applications
-   - Try a different model with `--model` flag
-
-3. **Authentication errors**:
-   - Verify your Hugging Face token is correct
-   - Check that you have permission to access the model
-   - Ensure your internet connection is stable
-
-## Note
-
-This project is part of CS416: Large Language Models course (BESE-12) at the School of Electrical Engineering and Computer Science, National University of Sciences and Technology (NUST). 
+- Your Name
+- Team Members 
