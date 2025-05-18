@@ -5,6 +5,7 @@ Run this script to initialize the system before starting the main application.
 
 import os
 import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.data_processor import preprocess_excel
 from utils.vector_store import VectorStore
 
