@@ -1,176 +1,339 @@
 import os
 from typing import List, Dict, Any, Optional
+from langchain_core.prompts import PromptTemplate
+from langchain_core.memory import BaseMemory
+from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain.chains import ConversationalRetrievalChain
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.documents import Document
+from utils.guardrails import filter_response, detect_out_of_domain
+import logging
+import streamlit as st
+from langchain.memory import ConversationBufferMemory
+from pydantic import Field, BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 import torch
-from utils.guardrails import filter_response, detect_out_of_domain
-from langchain.llms import HuggingFacePipeline
-from langchain.prompts import PromptTemplate
-from langchain.memory import ConversationBufferMemory
-from langchain.chains import ConversationalRetrievalChain
-from huggingface_hub import login
-from transformers import BitsAndBytesConfig
+import tempfile
+import sys
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+import pandas as pd
+from langchain_huggingface import HuggingFacePipeline
+
+# Configure logging with UTF-8 encoding
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout  # Force UTF-8 encoding
+)
+logger = logging.getLogger(__name__)
+
+# Filter out FAISS GPU messages
+logging.getLogger('faiss').setLevel(logging.ERROR)
+
+def convert_to_documents(data: Any) -> List[Document]:
+    """
+    Convert various data types to a list of Document objects.
+    
+    Args:
+        data: Input data (DataFrame, list, or string)
+        
+    Returns:
+        List of Document objects
+    """
+    try:
+        if isinstance(data, pd.DataFrame):
+            # Convert DataFrame to documents
+            documents = []
+            for _, row in data.iterrows():
+                # Convert row to string and create document
+                content = " ".join(str(value) for value in row.values if pd.notna(value))
+                if content.strip():  # Only add non-empty documents
+                    documents.append(Document(page_content=content))
+            return documents
+            
+        elif isinstance(data, list):
+            # Convert list to documents
+            return [Document(page_content=str(item)) for item in data if str(item).strip()]
+            
+        elif isinstance(data, str):
+            # Convert string to single document
+            return [Document(page_content=data)] if data.strip() else []
+            
+        else:
+            logger.warning(f"Unsupported data type: {type(data)}")
+            return []
+            
+    except Exception as e:
+        logger.error(f"Error converting data to documents: {str(e)}", exc_info=True)
+        return []
+
+class SimpleRetriever(BaseRetriever, BaseModel):
+    """Simple retriever for document search using semantic similarity."""
+    
+    documents: List[Document] = Field(default_factory=list)
+    encoder: Optional[SentenceTransformer] = Field(default=None)
+    
+    def __init__(self, documents: Optional[List[Document]] = None):
+        """Initialize with optional documents."""
+        # Convert input to Document objects if needed
+        if documents is not None:
+            documents = convert_to_documents(documents)
+        super().__init__(documents=documents or [])
+        self.encoder = SentenceTransformer('all-MiniLM-L6-v2')
+        logger.info(f"Initialized SimpleRetriever with {len(self.documents)} documents")
+    
+    def _get_relevant_documents(self, query: str) -> List[Document]:
+        """Return relevant documents for the query using semantic similarity."""
+        try:
+            if not self.documents:
+                logger.warning("No documents available for retrieval")
+                return []
+            
+            # Encode query and documents
+            query_embedding = self.encoder.encode([query])[0]
+            doc_embeddings = self.encoder.encode([doc.page_content for doc in self.documents])
+            
+            # Calculate similarities
+            similarities = cosine_similarity([query_embedding], doc_embeddings)[0]
+            
+            # Get top 3 most similar documents
+            top_k = min(3, len(self.documents))
+            top_indices = np.argsort(similarities)[-top_k:][::-1]
+            
+            # Log retrieval results
+            logger.info(f"Retrieved {top_k} documents for query: {query}")
+            for idx in top_indices:
+                logger.debug(f"Document similarity: {similarities[idx]:.4f}")
+            
+            return [self.documents[i] for i in top_indices]
+            
+        except Exception as e:
+            logger.error(f"Error in document retrieval: {str(e)}", exc_info=True)
+            return []
+
+class StreamlitChatMessageHistory(BaseChatMessageHistory):
+    """Chat message history that stores messages in Streamlit session state."""
+    
+    def __init__(self, key: str = "chat_history"):
+        self.key = key
+        if key not in st.session_state:
+            st.session_state[key] = []
+    
+    @property
+    def messages(self):
+        return st.session_state[self.key]
+    
+    def add_user_message(self, message: str) -> None:
+        st.session_state[self.key].append(HumanMessage(content=message))
+    
+    def add_ai_message(self, message: str) -> None:
+        st.session_state[self.key].append(AIMessage(content=message))
+    
+    def clear(self) -> None:
+        st.session_state[self.key] = []
 
 class LLMModel:
     """
-    Large Language Model for response generation using Llama 3.2 3B Instruct.
+    Large Language Model for response generation using Hugging Face Transformers with LangChain.
     """
     
     def __init__(self):
         """
-        Initialize the Llama 3.2 3B Instruct model with optimizations.
+        Initialize the model using Hugging Face Transformers with LangChain.
         """
-        self.model_name = "meta-llama/Llama-3.2-3B-Instruct"
+        self.model_name = "taha99/llama3-3b-instruct-bank-query-10k"
         
-        # Check if CUDA is available and set device
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"Using device: {self.device}")
-        
-        # Load the model and tokenizer with optimizations
         try:
-            print(f"Loading model: {self.model_name}...")
+            logger.info("Initializing LLM model...")
             
-            # Initialize tokenizer with padding
-            self.tokenizer = AutoTokenizer.from_pretrained(
+            # Check for HuggingFace token
+            if not os.getenv("HUGGINGFACE_API_TOKEN"):
+                raise ValueError("HUGGINGFACE_API_TOKEN environment variable not set")
+            
+            # Initialize tokenizer and model
+            logger.info("Loading tokenizer and model...")
+            tokenizer = AutoTokenizer.from_pretrained(
                 self.model_name,
-                padding_side="left",
-                truncation_side="left",
-                trust_remote_code=True
-            )
-            
-            # Set default padding token if not set
-            if self.tokenizer.pad_token is None:
-                self.tokenizer.pad_token = self.tokenizer.eos_token
-            
-            # Configure quantization for better memory efficiency
-            quantization_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.float16,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_use_double_quant=True
-            )
-            
-            # Load model with optimizations
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.model_name,
-                quantization_config=quantization_config if self.device == "cuda" else None,
-                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
-                device_map="auto" if self.device == "cuda" else None,
                 trust_remote_code=True,
-                use_cache=True,
-                low_cpu_mem_usage=True
+                padding_side="left",
+                token=os.getenv("HUGGINGFACE_API_TOKEN")
             )
+            logger.info("Tokenizer loaded successfully")
             
-            # Create optimized pipeline with chat template
-            self.pipe = pipeline(
+            # Load model in CPU mode with memory optimizations
+            logger.info("Loading model...")
+            model = AutoModelForCausalLM.from_pretrained(
+                self.model_name,
+                device_map="cpu",
+                low_cpu_mem_usage=True,
+                trust_remote_code=True,
+                torch_dtype=torch.float32,
+                token=os.getenv("HUGGINGFACE_API_TOKEN")
+            )
+            logger.info("Model loaded successfully")
+            
+            # Create pipeline with optimized settings
+            logger.info("Creating text generation pipeline...")
+            pipe = pipeline(
                 "text-generation",
-                model=self.model,
-                tokenizer=self.tokenizer,
-                max_new_tokens=250,
+                model=model,
+                tokenizer=tokenizer,
+                max_new_tokens=512,
                 temperature=0.7,
                 top_p=0.95,
-                top_k=50,
-                repetition_penalty=1.2,
+                repetition_penalty=1.15,
                 do_sample=True,
-                device_map="auto" if self.device == "cuda" else None,
-                batch_size=1,
-                return_full_text=False
+                device_map="cpu",
+                pad_token_id=tokenizer.eos_token_id
             )
+            logger.info("Pipeline created successfully")
             
-            # Create LangChain pipeline
-            self.llm = HuggingFacePipeline(pipeline=self.pipe)
+            # Initialize LangChain wrapper
+            self.llm = HuggingFacePipeline(pipeline=pipe)
+            logger.info("LangChain wrapper initialized")
             
-            # Initialize conversation memory with improved context handling
+            # Initialize retriever with empty documents
+            self.retriever = SimpleRetriever()
+            logger.info("Retriever initialized")
+            
+            # Initialize memory with updated configuration
             self.memory = ConversationBufferMemory(
                 memory_key="chat_history",
                 return_messages=True,
                 output_key="answer"
             )
+            logger.info("Memory initialized")
             
-            print(f"Successfully loaded {self.model_name}")
+            # Create prompt template with better instructions
+            self.prompt = PromptTemplate(
+                input_variables=["chat_history", "question", "context"],
+                template="""You are a helpful and knowledgeable banking assistant for NUST Bank. Your goal is to provide accurate, helpful, and friendly responses to customer inquiries about banking products and services.
+
+IMPORTANT GUIDELINES:
+1. ONLY answer questions related to banking, finance, and NUST Bank's products/services
+2. If the question is NOT about banking or finance, respond with: "I apologize, but I can only assist with banking-related questions. Please ask about NUST Bank's products, services, or banking operations."
+3. Use the provided context to answer questions accurately
+4. If you don't know the answer, say so politely
+5. Keep responses concise but informative
+6. Maintain a professional and friendly tone
+7. Do not share sensitive information
+8. Use examples when helpful
+9. Break down complex information into digestible parts
+10. Always prioritize customer security and privacy
+
+Context: {context}
+
+Chat History:
+{chat_history}
+
+Human: {question}
+Assistant:"""
+            )
+            logger.info("Prompt template created")
+            
+            # Create chain with better configuration
+            self.chain = ConversationalRetrievalChain.from_llm(
+                llm=self.llm,
+                retriever=self.retriever,
+                memory=self.memory,
+                combine_docs_chain_kwargs={
+                    "prompt": self.prompt,
+                    "document_variable_name": "context"
+                },
+                return_source_documents=True,
+                return_generated_question=True,
+                max_tokens_limit=4000,
+                verbose=True
+            )
+            logger.info("Chain created successfully")
+            
+            logger.info("Successfully initialized model via Transformers")
             
         except Exception as e:
-            print(f"Error loading model {self.model_name}: {str(e)}")
-            raise RuntimeError(f"Failed to load Llama 3.2 3B Instruct model: {str(e)}")
-    
-    def generate_response(self, query: str, context: List[str], max_length: int = 250, temperature: float = 0.7) -> str:
-        """
-        Generate a response based on the query and context with improved prompt handling.
-        
-        Args:
-            query: The user's query
-            context: List of relevant context chunks
-            max_length: Maximum length of the generated response
-            temperature: Temperature for generation (higher = more creative)
-            
-        Returns:
-            Generated response
-        """
-        # Check if query is out of domain
-        if detect_out_of_domain(query):
-            return "I'm sorry, but your question appears to be outside the domain of banking and financial services. I'm specifically trained to help with questions about NUST Bank's products and services. How can I assist you with your banking needs today?"
-        
+            logger.error(f"Error during LLM initialization: {str(e)}", exc_info=True)
+            raise
+
+    def generate_response(self, query: str, context: Optional[List[Document]] = None, **kwargs) -> str:
+        """Generate a response using the LLM model."""
         try:
-            # Create an improved prompt template using LLaMA chat format
-            messages = [
-                {"role": "system", "content": """You are a helpful, accurate, and friendly bank assistant for NUST Bank. 
-                Your role is to provide accurate information about banking products and services.
-                
-                Guidelines:
-                1. Answer based ONLY on the provided context
-                2. If information is not in the context, politely say so
-                3. Keep responses clear and concise
-                4. Maintain a professional and helpful tone
-                5. Use bullet points for multiple items
-                6. Format numbers and percentages appropriately"""},
-                {"role": "user", "content": f"Context: {' '.join(context)}\n\nQuestion: {query}"}
-            ]
+            logger.info(f"Starting response generation for query: {query}")
             
-            # Format messages for the model
-            formatted_prompt = self.tokenizer.apply_chat_template(
-                messages,
-                tokenize=False,
-                add_generation_prompt=True
-            )
+            # Only update retriever if new context is provided
+            if context and len(context) > 0:
+                logger.info(f"Updating retriever with {len(context)} documents")
+                # Convert context to Document objects if needed
+                context = convert_to_documents(context)
+                if context:  # Only update if we have valid documents
+                    # Log the context being used
+                    for i, doc in enumerate(context):
+                        logger.info(f"Context {i}: {doc.page_content[:200]}...")
+                    
+                    self.retriever = SimpleRetriever(documents=context)
+                    self.chain = ConversationalRetrievalChain.from_llm(
+                        llm=self.llm,
+                        retriever=self.retriever,
+                        memory=self.memory,
+                        combine_docs_chain_kwargs={
+                            "prompt": self.prompt,
+                            "document_variable_name": "context"
+                        },
+                        return_source_documents=True,
+                        return_generated_question=True,
+                        verbose=True
+                    )
             
-            # Generate response with improved parameters
-            response = self.llm(
-                formatted_prompt,
-                max_length=max_length,
-                temperature=temperature,
-                do_sample=True,
-                top_p=0.95,
-                top_k=50,
-                repetition_penalty=1.2
-            )
+            logger.info("Preparing to invoke chain for response generation...")
+            # Generate response using invoke instead of __call__
+            response = self.chain.invoke({"question": query})
+            logger.info(f"Raw chain response: {response}")
             
-            # Update memory with improved context
-            self.memory.save_context(
-                {"input": query, "context": " ".join(context)},
-                {"output": response}
-            )
+            if not response:
+                logger.error("Empty response from chain")
+                return "I apologize, but I was unable to generate a response. Please try again."
             
-            # Apply response filtering with improved handling
-            filtered_response = filter_response(response)
+            if isinstance(response, dict):
+                if "answer" in response:
+                    answer = response["answer"]
+                    # Log source documents if available
+                    if "source_documents" in response:
+                        logger.info("Source documents used:")
+                        for i, doc in enumerate(response["source_documents"]):
+                            logger.info(f"Source {i}: {doc.page_content[:200]}...")
+                elif "text" in response:
+                    answer = response["text"]
+                else:
+                    logger.error(f"Unexpected response format: {response}")
+                    return "I apologize, but I was unable to generate a response. Please try again."
+            else:
+                answer = str(response)
             
-            return filtered_response
+            # Clean up the response
+            answer = answer.strip()
+            if "Assistant:" in answer:
+                answer = answer.split("Assistant:")[-1].strip()
+            
+            # Filter response for sensitive information
+            answer = filter_response(answer)
+            
+            logger.info(f"Successfully generated response: {answer}")
+            return answer
             
         except Exception as e:
-            print(f"Error generating response: {str(e)}")
-            return "I apologize, but I am currently experiencing technical difficulties. Please try again later."
+            logger.error(f"Error in generate_response: {str(e)}", exc_info=True)
+            return f"I apologize, but I encountered an error while processing your request: {str(e)}"
     
     def get_model_info(self) -> Dict[str, Any]:
         """
-        Get detailed information about the loaded model.
+        Get information about the model being used.
         
         Returns:
             Dictionary with model information
         """
         return {
             "model_name": self.model_name,
-            "device": self.device,
-            "parameters": sum(p.numel() for p in self.model.parameters()) / 1_000_000,  # In millions
-            "optimizations": {
-                "half_precision": self.model.dtype == torch.float16,
-                "quantization": hasattr(self.model, "quantization_config") and self.model.quantization_config is not None
-            }
+            "api_type": "Hugging Face Transformers with LangChain",
+            "framework": "LangChain"
         } 

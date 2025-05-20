@@ -1,107 +1,131 @@
 # NUST Bank LLM Assistant
 
-This project implements a Large Language Model (LLM)-based solution to enhance customer service for NUST Bank. The system uses a retrieval-augmented generation (RAG) approach to answer customer queries accurately using a knowledge base of banking products and services.
+A banking assistant powered by a fine-tuned LLaMA 3.2 3B Instruct model, designed to provide accurate and secure responses to banking-related queries.
 
 ## Features
 
-- **Data Ingestion & Preprocessing**: Handles Excel, CSV, JSON, and plaintext files with automatic sanitization.
-- **Embedding & Indexing**: Creates vector embeddings for efficient semantic search using FAISS.
-- **LLM Integration**: Uses Llama-3.2-3B-Instruct for high-quality response generation.
-- **Guard Rails**: Implements safety measures to prevent harmful content and protect sensitive information.
-- **Real-Time Updates**: Allows adding new documents to the knowledge base through the UI.
-- **Streamlit Interface**: Provides an intuitive chat interface for customers.
-
-## Architecture
-
-The system follows a retrieval-augmented generation (RAG) architecture:
-
-1. **Data Processing**: Documents are preprocessed, chunked, and embedded.
-2. **Vector Storage**: FAISS is used for efficient similarity search.
-3. **Query Processing**: User questions are converted to embeddings and matched with relevant context.
-4. **Response Generation**: The LLM generates responses based on retrieved context.
-5. **Guard Rails**: Safety filters prevent harmful content and protect sensitive data.
-
-## Setup Instructions
-
-### Prerequisites
-
-- Python 3.8+
-- Pip package manager
-
-### Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/bank-llm-assistant.git
-   cd bank-llm-assistant
-   ```
-
-2. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   
-   # On Windows
-   venv\Scripts\activate
-   
-   # On macOS/Linux
-   source venv/bin/activate
-   ```
-
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-### Running the Application
-
-1. Start the Streamlit app:
-   ```bash
-   streamlit run main.py
-   ```
-
-2. Open your browser and navigate to http://localhost:8501
-
-## Usage
-
-- Ask questions about NUST Bank products and services in the chat interface.
-- Upload new documents via the sidebar to expand the knowledge base.
-- Adjust response settings like length and temperature in the sidebar.
+- 🤖 Fine-tuned LLaMA 3.2 3B Instruct model for banking domain
+- 📚 Document processing and knowledge base management
+- 🔒 Built-in guardrails for data privacy and security
+- 💬 Interactive chat interface with Streamlit
+- 📊 Support for multiple document formats (PDF, Excel, CSV, TXT)
+- 🔍 Efficient vector search using FAISS
+- 📝 Comprehensive logging and audit trails
 
 ## Project Structure
 
 ```
 bank-llm-assistant/
-├── app/                    # Application components
-├── data/                   # Data storage (FAISS indices)
-├── models/                 # LLM model implementation
-│   └── llm.py              # LLM model class
-├── utils/                  # Utility functions
-│   ├── data_processor.py   # Data preprocessing utilities
-│   ├── guardrails.py       # Safety filters
-│   └── vector_store.py     # FAISS vector store implementation
-├── main.py                 # Main Streamlit application
-├── requirements.txt        # Python dependencies
-└── README.md               # Project documentation
+├── app/
+│   └── main.py              # Streamlit application
+├── models/
+│   ├── llm.py              # LLM model implementation
+│   └── fine_tuning.ipynb   # Model fine-tuning notebook
+├── utils/
+│   ├── data_processor.py   # Document processing
+│   ├── vector_store.py     # Vector search implementation
+│   └── guardrails.py       # Security and privacy checks
+├── cache/                  # Vector store cache
+├── requirements.txt        # Project dependencies
+└── README.md              # Project documentation
 ```
 
-## Limitations
+## Setup
 
-- The system is designed for a specific domain (banking) and may not perform well on out-of-domain queries.
-- The LLM model requires significant computational resources, especially on CPU-only environments.
-- Answers are limited to the information contained in the knowledge base.
+1. Create a virtual environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Linux/Mac
+   venv\Scripts\activate     # Windows
+   ```
 
-## Future Improvements
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-- Multi-language support for diverse customer base
-- Integration with bank's authentication system for personalized responses
-- Enhanced context retrieval with hybrid search methods
-- Support for additional document formats (PDF, DOC, etc.)
+3. Login to Hugging Face:
+   ```bash
+   huggingface-cli login
+   ```
+
+4. Run the application:
+   ```bash
+   streamlit run app/main.py
+   ```
+
+## Usage
+
+1. **Starting the Application**
+   - Run `streamlit run app/main.py`
+   - Access the web interface at `http://localhost:8501`
+
+2. **Uploading Documents**
+   - Use the sidebar to upload banking documents
+   - Supported formats: PDF, Excel, CSV, TXT
+   - Documents are automatically processed and indexed
+
+3. **Chat Interface**
+   - Type your banking-related questions in the chat input
+   - The assistant will provide relevant responses based on the uploaded documents
+   - Responses are filtered for sensitive information
+
+4. **Security Features**
+   - Automatic detection of sensitive data
+   - Domain-specific response filtering
+   - Comprehensive audit logging
+
+## Model Details
+
+- Base Model: LLaMA 3.2 3B Instruct
+- Fine-tuned on banking domain data
+- Optimized for memory efficiency
+- Supports context-aware responses
+
+## Development
+
+### Adding New Features
+
+1. **Document Processing**
+   - Add new file type support in `utils/data_processor.py`
+   - Implement custom processing logic
+
+2. **Guard Rails**
+   - Extend patterns in `utils/guardrails.py`
+   - Add new validation rules
+
+3. **Vector Store**
+   - Modify indexing strategy in `utils/vector_store.py`
+   - Adjust chunk size and overlap
+
+### Fine-tuning
+
+1. Prepare your dataset
+2. Use the `models/fine_tuning.ipynb` notebook
+3. Follow the instructions in the notebook
+4. Upload the fine-tuned model to Hugging Face
+
+## Security Considerations
+
+- All sensitive data is automatically detected and filtered
+- Responses are validated against banking domain
+- Comprehensive logging for audit trails
+- No sensitive data is stored in the vector store
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
-This project is licensed for educational purposes only and is not intended for production use.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Contributors
+## Acknowledgments
 
-- Your Name
-- Team Members 
+- Meta AI for the LLaMA model
+- Hugging Face for the Transformers library
+- Streamlit for the web interface framework 

@@ -37,62 +37,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-venv/
-env/
-ENV/
-.venv/
-.env/
-.env.bak/
-.venv.bak/
-*.egg-info/
-*.egg
-.eggs/
-.installed.cfg
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Local development files
-.idea/
-.vscode/
-*.swp
-*.swo
-.DS_Store
-.coverage
-htmlcov/
-.pytest_cache/
-*.log
-*.db
-*.sqlite3
-
-# Distribution / packaging
-dist/
-build/
-downloads/
-eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-
-# Temporary files
-temp/
-tmp/
-*.tmp
-*.bak
-
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
 build/
 develop-eggs/
 dist/
@@ -105,36 +49,58 @@ parts/
 sdist/
 var/
 wheels/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
+# Virtual Environment
+venv/
+ENV/
+env/
+.env
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
+# Project specific
+cache/
+data/
+uploads/
+*.log
+guardrails.log
+data_processing.log
+
+# Model files
+*.bin
+*.pt
+*.pth
+*.onnx
+*.h5
+
+# Temporary files
+temp_*
+*.tmp
+*.bak
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# Streamlit
+.streamlit/
+
+# Test coverage
 .coverage
+htmlcov/
+.pytest_cache/
+.tox/
 .coverage.*
-.cache
-nosetests.xml
 coverage.xml
 *.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-cover/
 
 # Translations
 *.mo

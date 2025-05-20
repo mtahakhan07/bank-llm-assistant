@@ -3,6 +3,319 @@ import os
 import json
 import re
 from typing import List, Dict, Any, Optional
+import numpy as np
+from pathlib import Path
+import logging
+from datetime import datetime
+import hashlib
+import tempfile
+
+logger = logging.getLogger(__name__)
+
+class DataProcessor:
+    """
+    Data processor for handling document processing and anonymization.
+    """
+    
+    def __init__(self):
+        """Initialize the data processor."""
+        self.logger = logging.getLogger(__name__)
+        self.setup_logging()
+        
+        # Regular expressions for sensitive data
+        self.patterns = {
+            'email': r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
+            'phone': r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b',
+            'ssn': r'\b\d{3}[-]?\d{2}[-]?\d{4}\b',
+            'account': r'\b\d{4}[-]?\d{4}[-]?\d{4}[-]?\d{4}\b',
+            'date': r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b',
+            'address': r'\b\d+\s+[A-Za-z\s,]+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Circle|Cir|Way)\b',
+            'name': r'\b[A-Z][a-z]+\s+[A-Z][a-z]+\b'
+        }
+        
+        # Text cleaning patterns
+        self.cleaning_patterns = {
+            'urls': r'https?://\S+|www\.\S+',
+            'special_chars': r'[^\w\s.,!?-]',
+            'extra_spaces': r'\s+',
+            'html_tags': r'<[^>]+>'
+        }
+        
+        self.processed_files = set()  # Track processed files
+    
+    def setup_logging(self):
+        """Setup logging configuration."""
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[
+                logging.FileHandler('data_processing.log'),
+                logging.StreamHandler()
+            ]
+        )
+    
+    def process_document(self, file_path: str) -> List[str]:
+        """
+        Process a document and return a list of text chunks.
+        
+        Args:
+            file_path: Path to the document
+            
+        Returns:
+            List of text chunks
+        """
+        try:
+            # Check if file has already been processed
+            file_hash = self._get_file_hash(file_path)
+            if file_hash in self.processed_files:
+                logger.info(f"File {file_path} already processed, skipping")
+                return []
+            
+            # Get file extension
+            ext = Path(file_path).suffix.lower()
+            
+            # Process based on file type
+            if ext in ['.xlsx', '.xls']:
+                chunks = self._process_excel(file_path)
+            elif ext == '.csv':
+                chunks = self._process_csv(file_path)
+            elif ext == '.json':
+                chunks = self._process_json(file_path)
+            elif ext == '.txt':
+                chunks = self._process_text(file_path)
+            else:
+                logger.warning(f"Unsupported file type: {ext}")
+                return []
+            
+            # Mark file as processed
+            self.processed_files.add(file_hash)
+            return chunks
+            
+        except Exception as e:
+            logger.error(f"Error processing file {file_path}: {str(e)}", exc_info=True)
+            return []
+    
+    def _get_file_hash(self, file_path: str) -> str:
+        """Generate a hash for the file to track processed files."""
+        try:
+            stat = os.stat(file_path)
+            return f"{file_path}_{stat.st_size}_{stat.st_mtime}"
+        except:
+            return file_path
+    
+    def _process_excel(self, file_path: str) -> List[str]:
+        """Process Excel file into text chunks."""
+        try:
+            logger.info(f"Processing Excel file: {file_path}")
+            
+            # Read Excel file
+            df = pd.read_excel(file_path)
+            
+            # Convert to text chunks
+            chunks = []
+            for _, row in df.iterrows():
+                # Convert row to string, handling NaN values
+                text = " ".join(str(val) for val in row.values if pd.notna(val))
+                if text.strip():
+                    chunks.append(text)
+            
+            logger.info(f"Extracted {len(chunks)} chunks from Excel file")
+            return chunks
+            
+        except Exception as e:
+            logger.error(f"Error processing Excel {file_path}: {str(e)}")
+            return []
+    
+    def _process_csv(self, file_path: str) -> List[str]:
+        """Process CSV file into text chunks."""
+        try:
+            df = pd.read_csv(file_path)
+            chunks = []
+            for _, row in df.iterrows():
+                text = " ".join(str(val) for val in row.values if pd.notna(val))
+                if text.strip():
+                    chunks.append(text)
+            return chunks
+        except Exception as e:
+            logger.error(f"Error processing CSV {file_path}: {str(e)}")
+            return []
+    
+    def _process_json(self, file_path: str) -> List[str]:
+        """Process JSON file into text chunks."""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            return self._flatten_json(data)
+        except Exception as e:
+            logger.error(f"Error processing JSON {file_path}: {str(e)}")
+            return []
+    
+    def _process_text(self, file_path: str) -> List[str]:
+        """Process text file into chunks."""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                text = f.read()
+            # Split into paragraphs
+            chunks = [p.strip() for p in text.split('\n\n') if p.strip()]
+            return chunks
+        except Exception as e:
+            logger.error(f"Error processing text file {file_path}: {str(e)}")
+            return []
+    
+    def _flatten_json(self, data: Any, prefix: str = "") -> List[str]:
+        """Flatten JSON data into text chunks."""
+        chunks = []
+        if isinstance(data, dict):
+            for key, value in data.items():
+                new_prefix = f"{prefix}.{key}" if prefix else key
+                chunks.extend(self._flatten_json(value, new_prefix))
+        elif isinstance(data, list):
+            for i, item in enumerate(data):
+                new_prefix = f"{prefix}[{i}]" if prefix else f"[{i}]"
+                chunks.extend(self._flatten_json(item, new_prefix))
+        else:
+            if data is not None:
+                chunks.append(f"{prefix}: {data}")
+        return chunks
+    
+    def clean_text(self, text: str) -> str:
+        """
+        Clean and normalize text.
+        
+        Args:
+            text: Text to clean
+            
+        Returns:
+            Cleaned text
+        """
+        # Convert to lowercase
+        text = text.lower()
+        
+        # Remove URLs
+        text = re.sub(self.cleaning_patterns['urls'], '', text)
+        
+        # Remove HTML tags
+        text = re.sub(self.cleaning_patterns['html_tags'], '', text)
+        
+        # Remove special characters
+        text = re.sub(self.cleaning_patterns['special_chars'], ' ', text)
+        
+        # Remove extra spaces
+        text = re.sub(self.cleaning_patterns['extra_spaces'], ' ', text)
+        
+        # Remove leading/trailing whitespace
+        text = text.strip()
+        
+        return text
+    
+    def tokenize_text(self, text: str) -> List[str]:
+        """
+        Tokenize text into words.
+        
+        Args:
+            text: Text to tokenize
+            
+        Returns:
+            List of tokens
+        """
+        # Clean text first
+        text = self.clean_text(text)
+        
+        # Split into words
+        tokens = text.split()
+        
+        # Remove stopwords (optional)
+        # tokens = [token for token in tokens if token not in self.stopwords]
+        
+        return tokens
+    
+    def _chunk_text(self, text: str, chunk_size: int = 1000) -> List[str]:
+        """
+        Split text into chunks of approximately equal size.
+        
+        Args:
+            text: Text to split
+            chunk_size: Target size of each chunk
+            
+        Returns:
+            List of text chunks
+        """
+        # Clean and anonymize text
+        text = self.clean_text(text)
+        text = self.anonymize_text(text)
+        
+        # Split into sentences
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        
+        # Create chunks
+        chunks = []
+        current_chunk = []
+        current_size = 0
+        
+        for sentence in sentences:
+            sentence_size = len(sentence)
+            
+            if current_size + sentence_size > chunk_size and current_chunk:
+                chunks.append(' '.join(current_chunk))
+                current_chunk = []
+                current_size = 0
+            
+            current_chunk.append(sentence)
+            current_size += sentence_size
+        
+        if current_chunk:
+            chunks.append(' '.join(current_chunk))
+        
+        return chunks
+    
+    def anonymize_text(self, text: str) -> str:
+        """
+        Anonymize sensitive information in text.
+        
+        Args:
+            text: Text to anonymize
+            
+        Returns:
+            Anonymized text
+        """
+        # Replace sensitive patterns with hashed values
+        for pattern_type, pattern in self.patterns.items():
+            matches = re.finditer(pattern, text)
+            for match in matches:
+                sensitive_data = match.group()
+                # Create a deterministic hash
+                hash_value = hashlib.sha256(sensitive_data.encode()).hexdigest()[:8]
+                replacement = f"[{pattern_type.upper()}_{hash_value}]"
+                text = text.replace(sensitive_data, replacement)
+        
+        return text
+    
+    def validate_data(self, data: List[str]) -> bool:
+        """
+        Validate processed data.
+        
+        Args:
+            data: List of processed text chunks
+            
+        Returns:
+            True if data is valid, False otherwise
+        """
+        if not data:
+            return False
+        
+        # Check for minimum content
+        total_length = sum(len(chunk) for chunk in data)
+        if total_length < 100:  # Minimum 100 characters
+            return False
+        
+        # Check for sensitive data
+        for chunk in data:
+            for pattern in self.patterns.values():
+                if re.search(pattern, chunk):
+                    self.logger.warning("Sensitive data found in processed chunks")
+                    return False
+        
+        return True
 
 def preprocess_excel(file_path: str, chunk_size: int = 500) -> List[str]:
     """
